@@ -157,10 +157,6 @@ async function onAttemptFailure({error, attemptNumber, retriesConsumed, startTim
 
 	await options.onFailedAttempt(context);
 
-	if (calculateRemainingTime(startTime, maxRetryTime) <= 0) {
-		throw normalizedError;
-	}
-
 	const remainingTime = calculateRemainingTime(startTime, maxRetryTime);
 
 	if (remainingTime <= 0 || retriesLeft <= 0) {
@@ -193,6 +189,10 @@ async function onAttemptFailure({error, attemptNumber, retriesConsumed, startTim
 	await delayForRetry(finalDelay, options);
 
 	options.signal?.throwIfAborted();
+
+	if (calculateRemainingTime(startTime, maxRetryTime) <= 0) {
+		throw normalizedError;
+	}
 
 	return true;
 }

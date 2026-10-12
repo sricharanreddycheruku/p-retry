@@ -9,6 +9,52 @@ import pRetry, {makeRetriable, AbortError} from './index.js';
 const fixture = Symbol('fixture');
 const fixtureError = new Error('fixture');
 
+for (const [name, minTimeout, elapsed, expired] of [
+	['a delay reaches the deadline', 1000, 100, true],
+	['the timer resumes after the deadline', 10, 101, true],
+	['a delay stays within the deadline', 10, 10, false],
+]) {
+	test.serial(`checks the retry deadline when ${name}`, async t => {
+		const originalSetTimeout = globalThis.setTimeout;
+		const descriptor = Object.getOwnPropertyDescriptor(performance, 'now');
+		let now = 0;
+		let attempts = 0;
+		const error = new Error('original failure');
+
+		Object.defineProperty(performance, 'now', {configurable: true, value: () => now});
+		globalThis.setTimeout = callback => {
+			now += elapsed;
+			return originalSetTimeout(callback, 0);
+		};
+
+		t.teardown(() => {
+			globalThis.setTimeout = originalSetTimeout;
+			if (descriptor) {
+				Object.defineProperty(performance, 'now', descriptor);
+			} else {
+				delete performance.now;
+			}
+		});
+
+		const promise = pRetry(() => {
+			attempts++;
+			if (attempts === 1) {
+				throw error;
+			}
+
+			return 'success';
+		}, {minTimeout, maxRetryTime: 100});
+
+		if (expired) {
+			t.is(await t.throwsAsync(promise), error);
+			t.is(attempts, 1);
+		} else {
+			t.is(await promise, 'success');
+			t.is(attempts, 2);
+		}
+	});
+}
+
 test('retries', async t => {
 	let index = 0;
 
